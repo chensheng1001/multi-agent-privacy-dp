@@ -1,0 +1,40 @@
+# Multi-Agent Privacy with Fact-Level Differential Privacy
+
+# LLM API Configuration
+api:
+  base_url: "https://token-plan-sgp.xiaomimimo.com/v1"
+  api_key: "tp-sxvdp02fkjb75eetdss6fl2bfzt0c9kd9sgbfugzjwiuqklu"
+  model: "mimo-v2.5-pro"
+  temperature: 0.7
+  max_tokens: 1024
+  max_retries: 3
+  retry_delay: 2.0
+
+# Experiment Configuration
+experiment:
+  num_adversarial_scenarios: 60
+  num_benign_scenarios: 59
+  num_users_range: [8, 15]
+  num_agents_range: [3, 5]
+  random_seed: 42
+  results_dir: "results"
+
+# Defense Methods to Run
+defenses:
+  - "none"
+  - "cot"
+  - "tom"
+  - "factdp"
+
+# Fact-Level DP Configuration
+factdp:
+  epsilon: 2.0            # Privacy budget per query
+  max_total_epsilon: 10.0  # Max total privacy budget per scenario
+  lambda_tradeoff: 1.0    # Privacy-utility trade-off parameter
+  composition: "advanced"  # "basic" or "advanced"
+  delta: 1e-5             # For advanced composition
+
+# Evaluator Configuration
+evaluator:
+  model: null  # null = use same model as api
+  temperature: 0.0
