@@ -58,16 +58,12 @@ def run_single_scenario(scenario, config):
         attack_result["inference"] = inference
         return evaluator.evaluate_adversarial(scenario, attack_result, "factdp")
     else:
-        benign_queries = scenario.get("benign_queries", [])
-        responses = []
-        for query in benign_queries[:3]:
-            for agent_id, defender in defenders.items():
-                try:
-                    response = defender.respond(query, llm)
-                    responses.append(response)
-                except Exception:
-                    pass
-        return evaluator.evaluate_benign(scenario, responses, "factdp")
+        attacker = Attacker(llm)
+        benign_results = attacker.execute_benign_queries(
+            benign_queries=scenario.get("benign_queries", []),
+            defenders=defenders,
+        )
+        return evaluator.evaluate_benign(scenario, benign_results, "factdp")
 
 
 def run_ablation(config_path="config.yaml"):

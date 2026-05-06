@@ -346,40 +346,50 @@ class FactDPDefender(BaseDefender):
 
         logger.info(f"[FactDP] Scoring {len(fact_keys)} facts for relevance")
 
+        # Build a numbered fact list for the LLM
+        numbered_facts = "\n".join(f"{i}. {t}" for i, t in enumerate(facts_text))
+
         prompt = (
-            f"Given the query: \"{query}\"\n\n"
-            f"Rate the relevance of each fact below to answering this query.\n"
-            f"Output ONLY a JSON object mapping fact indices (0-based) to scores (0.0-1.0).\n\n"
-            f"Facts:\n" + "\n".join(facts_text) + "\n\n"
-            f"Output format: {{\"0\": 0.8, \"1\": 0.2, ...}}"
+            f"I have a user query and a list of facts. "
+            f"Rate how relevant each fact is to answering the query (0.0 = irrelevant, 1.0 = highly relevant).\n\n"
+            f"User query: \"{query}\"\n\n"
+            f"Facts (numbered 0 to {len(fact_keys)-1}):\n{numbered_facts}\n\n"
+            f"You MUST respond with ONLY a JSON object, no other text. "
+            f"Map each fact number to its relevance score. Example: {{\"0\": 0.9, \"1\": 0.1, \"2\": 0.5}}"
         )
 
         try:
             response = llm.chat(
-                "You are a relevance scoring system. Output only valid JSON.",
+                "You are a JSON-only relevance scorer. You MUST output only valid JSON, nothing else. "
+                "Do not include any explanation, markdown, or code blocks. Only raw JSON.",
                 prompt,
                 temperature=0.0,
-                max_tokens=512,
+                max_tokens=1024,
             )
-            logger.info(f"[FactDP] Relevance LLM response: {response[:200]}...")
+            logger.info(f"[FactDP] Relevance LLM response (first 300 chars): {response[:300]}")
 
-            # Parse JSON response
-            import json
-            # Try to extract JSON from response
-            json_start = response.find("{")
-            json_end = response.rfind("}") + 1
-            if json_start >= 0 and json_end > json_start:
-                scores = json.loads(response[json_start:json_end])
-                result = {}
-                for k, v in scores.items():
-                    try:
-                        idx = int(k)
-                        if idx < len(fact_keys):
-                            result[fact_keys[idx]] = float(v)
-                    except (ValueError, TypeError):
-                        continue
-                logger.info(f"[FactDP] Parsed {len(result)} relevance scores")
-                return result
+            # Parse JSON response with robust extraction
+            import json, re
+            # Try to find JSON object in the response
+            json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+            if json_match:
+                try:
+                    scores = json.loads(json_match.group())
+                    result = {}
+                    for k, v in scores.items():
+                        try:
+                            idx = int(k)
+                            if 0 <= idx < len(fact_keys):
+                                result[fact_keys[idx]] = max(0.0, min(1.0, float(v)))
+                        except (ValueError, TypeError):
+                            continue
+                    if result:
+                        logger.info(f"[FactDP] Parsed {len(result)} relevance scores")
+                        return result
+                    else:
+                        logger.warning(f"[FactDP] JSON parsed but no valid scores extracted")
+                except json.JSONDecodeError as e:
+                    logger.warning(f"[FactDP] JSON parse error: {e}")
             else:
                 logger.warning(f"[FactDP] No JSON found in relevance response")
         except Exception as e:
@@ -392,6 +402,9 @@ class FactDPDefender(BaseDefender):
     def respond(self, query: str, llm: LLMClient,
                 context: str = "", **kwargs) -> str:
         """Respond using fact-level DP mechanism."""
+        # Ensure query is a string (defensive)
+        if not isinstance(query, str):
+            query = str(query)
         self.query_count += 1
         logger.info(f"[FactDP] Query #{self.query_count} for agent {self.agent_id}")
 
@@ -414,10 +427,11 @@ class FactDPDefender(BaseDefender):
             logger.info(f"[FactDP] No facts selected, returning empty response")
             return "I don't have relevant information to answer this query."
 
-        # Generate response from selected facts
+        # Generate response from selected facts (limit to top 10 to avoid prompt overflow)
+        top_facts = selected_facts[:10]
         facts_text = "\n".join(
             f"- {f['user_id']}, {f['column']}: {f['value']}"
-            for f in selected_facts
+            for f in top_facts
         )
 
         system_prompt = (

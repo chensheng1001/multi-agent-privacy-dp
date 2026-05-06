@@ -24,6 +24,12 @@ class LLMClient:
     def chat(self, system_prompt: str, user_prompt: str,
              temperature: float = None, max_tokens: int = None) -> str:
         """Send a chat completion request with retry logic."""
+        # Defensive: ensure prompts are strings
+        if not isinstance(system_prompt, str):
+            system_prompt = str(system_prompt)
+        if not isinstance(user_prompt, str):
+            user_prompt = str(user_prompt)
+
         temp = temperature if temperature is not None else self.config.temperature
         tokens = max_tokens if max_tokens is not None else self.config.max_tokens
 
