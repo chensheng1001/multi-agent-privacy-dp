@@ -370,11 +370,14 @@ class FactDPDefender(BaseDefender):
             json_end = response.rfind("}") + 1
             if json_start >= 0 and json_end > json_start:
                 scores = json.loads(response[json_start:json_end])
-                result = {
-                    fact_keys[int(k)]: float(v)
-                    for k, v in scores.items()
-                    if int(k) < len(fact_keys)
-                }
+                result = {}
+                for k, v in scores.items():
+                    try:
+                        idx = int(k)
+                        if idx < len(fact_keys):
+                            result[fact_keys[idx]] = float(v)
+                    except (ValueError, TypeError):
+                        continue
                 logger.info(f"[FactDP] Parsed {len(result)} relevance scores")
                 return result
             else:
