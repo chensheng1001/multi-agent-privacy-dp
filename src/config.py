@@ -65,7 +65,12 @@ def load_config(config_path: str = "config.yaml") -> Config:
     if "experiment" in raw:
         config.experiment = ExperimentConfig(**raw["experiment"])
     if "factdp" in raw:
-        config.factdp = FactDPConfig(**raw["factdp"])
+        factdp_raw = raw["factdp"]
+        # YAML may parse scientific notation (1e-5) as string, force float
+        for key in ["epsilon", "max_total_epsilon", "lambda_tradeoff", "delta"]:
+            if key in factdp_raw:
+                factdp_raw[key] = float(factdp_raw[key])
+        config.factdp = FactDPConfig(**factdp_raw)
     if "defenses" in raw:
         config.defenses = raw["defenses"]
     if "evaluator" in raw and raw["evaluator"].get("model"):
