@@ -21,9 +21,6 @@ experiment:
 
 # Defense Methods to Run
 defenses:
-  - "none"
-  - "cot"
-  - "tom"
   - "factdp"
 
 # Fact-Level DP Configuration
