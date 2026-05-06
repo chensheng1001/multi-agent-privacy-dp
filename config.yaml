@@ -3,7 +3,7 @@
 # LLM API Configuration
 api:
   base_url: "https://token-plan-sgp.xiaomimimo.com/v1"
-  api_key: "tp-sxvdp02fkjb75eetdss6fl2bfzt0c9kd9sgbfugzjwiuqklu"
+  api_key: "TODO"
   model: "mimo-v2.5-pro"
   temperature: 0.7
   max_tokens: 1024
