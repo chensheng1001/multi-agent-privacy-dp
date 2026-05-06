@@ -19,7 +19,10 @@ from src.evaluator import Evaluator
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler("experiment.log", mode="w", encoding="utf-8"),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -121,7 +124,8 @@ def run_experiment(config: Config) -> Dict[str, Any]:
                 result = run_single_scenario(scenario, defense_type, llm, config)
                 results.append(result)
             except Exception as e:
-                logger.error(f"  ERROR on {scenario['scenario_id']}: {e}")
+                logger.error(f"  ERROR on {scenario['scenario_id']} ({defense_type}): {type(e).__name__}: {e}",
+                             exc_info=True)
                 results.append({
                     "scenario_id": scenario["scenario_id"],
                     "defense_type": defense_type,

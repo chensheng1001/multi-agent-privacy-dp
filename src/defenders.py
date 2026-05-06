@@ -341,7 +341,10 @@ class FactDPDefender(BaseDefender):
                 facts_text.append(f"- {user_id}, {col}: {val}")
 
         if not facts_text:
+            logger.info("[FactDP] No facts to score")
             return {}
+
+        logger.info(f"[FactDP] Scoring {len(fact_keys)} facts for relevance")
 
         prompt = (
             f"Given the query: \"{query}\"\n\n"
@@ -358,6 +361,7 @@ class FactDPDefender(BaseDefender):
                 temperature=0.0,
                 max_tokens=512,
             )
+            logger.info(f"[FactDP] Relevance LLM response: {response[:200]}...")
 
             # Parse JSON response
             import json
@@ -366,24 +370,31 @@ class FactDPDefender(BaseDefender):
             json_end = response.rfind("}") + 1
             if json_start >= 0 and json_end > json_start:
                 scores = json.loads(response[json_start:json_end])
-                return {
+                result = {
                     fact_keys[int(k)]: float(v)
                     for k, v in scores.items()
                     if int(k) < len(fact_keys)
                 }
+                logger.info(f"[FactDP] Parsed {len(result)} relevance scores")
+                return result
+            else:
+                logger.warning(f"[FactDP] No JSON found in relevance response")
         except Exception as e:
             logger.warning(f"Relevance scoring failed: {e}, using uniform scores")
 
         # Fallback: uniform scores
+        logger.info(f"[FactDP] Using uniform 0.5 scores for {len(fact_keys)} facts")
         return {k: 0.5 for k in fact_keys}
 
     def respond(self, query: str, llm: LLMClient,
                 context: str = "", **kwargs) -> str:
         """Respond using fact-level DP mechanism."""
         self.query_count += 1
+        logger.info(f"[FactDP] Query #{self.query_count} for agent {self.agent_id}")
 
         # Check privacy budget
         if not self._has_budget_remaining(self.dp_config.epsilon):
+            logger.info(f"[FactDP] Privacy budget exhausted for agent {self.agent_id}")
             return (
                 "I cannot answer this query as it would exceed the privacy budget. "
                 "The system has reached its maximum allowable information disclosure."
@@ -391,11 +402,13 @@ class FactDPDefender(BaseDefender):
 
         # Select facts using exponential mechanism
         selected_facts = self._select_facts_for_query(query, llm)
+        logger.info(f"[FactDP] Selected {len(selected_facts)} facts for query")
 
         # Update privacy budget
         self.total_epsilon_spent += self.dp_config.epsilon
 
         if not selected_facts:
+            logger.info(f"[FactDP] No facts selected, returning empty response")
             return "I don't have relevant information to answer this query."
 
         # Generate response from selected facts
@@ -410,7 +423,13 @@ class FactDPDefender(BaseDefender):
             f"Available information:\n{facts_text}"
         )
 
-        return llm.chat(system_prompt, query)
+        try:
+            response = llm.chat(system_prompt, query)
+            logger.info(f"[FactDP] Response generated ({len(response)} chars)")
+            return response
+        except Exception as e:
+            logger.error(f"[FactDP] LLM call failed in respond(): {type(e).__name__}: {e}")
+            raise
 
     def get_privacy_stats(self) -> Dict[str, Any]:
         """Return privacy budget statistics."""
